@@ -1,0 +1,16 @@
+# Virtual environments
+.venv
+
+# IDE-specific files
+.idea/
+.vscode/
+
+# Log files
+*.log
+
+*.DS_Store
+
+config/*.yaml
+
+super-llm
+super-llm.exe
