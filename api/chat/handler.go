@@ -1,34 +1,34 @@
 package chat
 
 import (
-	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"super-llm/domain/committee"
-	"super-llm/pkg/sdk"
+
+	"github.com/cv70/pkgo/llm"
 )
 
 // Handler holds dependencies for the chat handler
 type Handler struct {
-	committee  *committee.CommitteeDomain
+	committee *committee.CommitteeDomain
 }
 
 // NewHandler creates a new chat handler
 func NewHandler(committee *committee.CommitteeDomain) *Handler {
 	return &Handler{
-		committee:  committee,
+		committee: committee,
 	}
 }
 
 // ChatCompletions handles the /chat/completions endpoint
 func (h *Handler) ChatCompletions(c *gin.Context) {
 	// Parse request body
-	var req sdk.ChatCompletionRequest
+	var req llm.ChatCompletionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
@@ -37,11 +37,6 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 	// Parse headers
 	membersHeader := c.GetHeader("X-Members")
 	viewsHeader := c.GetHeader("X-Views")
-
-	if membersHeader == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal request header"})
-		return
-	}
 
 	// Process models from header
 	members := parseModels(membersHeader)
@@ -68,42 +63,29 @@ func (h *Handler) ChatCompletions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
+	defer response.Body.Close()
 
 	// Return response
-	c.JSON(http.StatusOK, response)
+	if req.Stream {
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	} else {
+		c.Writer.Header().Set("Content-Type", "application/json")
+	}
+	_, err = io.Copy(c.Writer, response.Body)
+	if err != nil {
+		slog.Error("copy response", slog.Any("err", err))
+	}
 }
 
 // processRequest processes the chat completion request
-func (h *Handler) processRequest(ctx context.Context, req *sdk.ChatCompletionRequest, members []string, opinion, review bool) (*sdk.ChatCompletionResponse, error) {
+func (h *Handler) processRequest(c *gin.Context, req *llm.ChatCompletionRequest, members []string, opinion, review bool) (*http.Response, error) {
 	// For simplicity, we'll use the RunCommitteeProcess method directly
 	// Since our interface requires a single question, we'll just use the first user message
-	result, err := h.committee.RunCommitteeProcess(ctx, req, members, opinion, review)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build response
-	response := &sdk.ChatCompletionResponse{
-		ID:      "chatcmpl-" + time.Now().Format("20060102150405"),
-		Object:  "chat.completion",
-		Created: time.Now().Unix(),
-		Model:   req.Model,
-		Choices: []sdk.ChatChoice{{
-			Index: 0,
-			Message: &sdk.ChatMessage{
-				Role:    "assistant",
-				Content: result,
-			},
-			FinishReason: "stop",
-		}},
-		Usage: &sdk.ChatUsage{
-			PromptTokens:     0,
-			CompletionTokens: 0,
-			TotalTokens:      0,
-		},
-	}
-
-	return response, nil
+	result, err := h.committee.RunCommitteeProcess(c, req, members, opinion, review)
+	return result, err
 }
 
 // parseModels parses comma-separated model names from header

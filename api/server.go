@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+    "github.com/gin-contrib/cors"
 
 	"super-llm/api/chat"
 	"super-llm/domain/committee"
@@ -44,12 +45,22 @@ func NewServer(committee *committee.CommitteeDomain) *Server {
 func (s *Server) registerRoutes() {
 	// Create chat handler
 	chatHandler := chat.NewHandler(s.committee)
-	
+	s.router.Use(cors.New(cors.Config{
+        AllowOrigins:     []string{"*"},
+        AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+        AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With"},
+        AllowCredentials: true,
+        MaxAge:           24 * time.Hour, // 缓存预检结果的时间
+    }))
+
 	// API routes
-	api := s.router.Group("/api/v1")
+	api := s.router.Group("/v1")
 	{
 		// Chat completions endpoint
 		api.POST("/chat/completions", chatHandler.ChatCompletions)
+
+		// completions endpoint
+		api.POST("/completions", chatHandler.ChatCompletions)
 	}
 }
 

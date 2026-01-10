@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"syscall"
 	"super-llm/api"
 	"super-llm/config"
 	"super-llm/domain/committee"
-	"super-llm/pkg/mistake"
+	"syscall"
+
+	"github.com/cv70/pkgo/mistake"
 )
 
 func main() {

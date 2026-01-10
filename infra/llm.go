@@ -3,15 +3,14 @@ package infra
 import (
 	"context"
 	"super-llm/config"
-	"super-llm/pkg/sdk"
 
-	"google.golang.org/adk/model"
+	"github.com/cv70/pkgo/llm"
 )
 
-func NewLLM(ctx context.Context, c *config.LLMConfig) (model.LLM, error) {
-	model, err := sdk.NewModel(ctx, c.Model, &sdk.ClientConfig{
+func NewLLM(ctx context.Context, c *config.LLMConfig) (*llm.OpenAIModel, error) {
+	model, err := llm.NewModel(ctx, c.Model, &llm.ClientConfig{
 		BaseURL: c.BaseURL,
-		APIKey: c.APIKey,
+		APIKey:  c.APIKey,
 	})
 	return model, err
 }
